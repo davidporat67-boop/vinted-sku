@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vinted SKU Manager — Collaboratif</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9; --border: #e2e0d8;
+    --text: #1a1917; --muted: #787570; --accent: #2d5016; --accent-bg: #e8f0df;
+    --danger: #8b1a1a; --danger-bg: #fdeaea; --warning: #7a4f00; --warning-bg: #fef3dc;
+    --info: #0f3460; --info-bg: #deeaf8;
+    --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 1.75rem; display: flex; align-items: center; gap: 10px; }
+  .sync-indicator { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 10px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; }
+  .sync-dot.online { background: #4caf50; animation: pulse 2s infinite; }
+  .sync-dot.loading { background: #ff9800; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem 1rem; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+  .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 1rem; }
+  .sku-box { display: flex; align-items: center; gap: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; margin-bottom: 1rem; }
+  .sku-lbl { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .sku-val { font-family: var(--mono); font-size: 16px; font-weight: 500; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .fg { display: flex; flex-direction: column; gap: 4px; }
+  .fg label { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .fg input, .fg select { font-family: var(--sans); font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; transition: border-color 0.15s; }
+  .fg input:focus, .fg select:focus { border-color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 8px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.12s; }
+  button:hover { background: var(--surface2); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { opacity: 0.88; background: var(--accent); }
+  button.danger { color: var(--danger); border-color: #f5c0c0; }
+  button.danger:hover { background: var(--danger-bg); }
+  button.export-btn { background: var(--info-bg); color: var(--info); border-color: #b8d0ee; }
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .filter-row input, .filter-row select { font-family: var(--sans); font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; }
+  .filter-row input { flex: 1; min-width: 120px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  tr.new-flash td { animation: flashgreen 1.2s ease; }
+  @keyframes flashgreen { 0%{background:#e8f0df} 100%{background:transparent} }
+  .mono-sm { font-family: var(--mono); font-size: 11px; }
+  .stat-sel { font-family: var(--sans); font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+  .icon-btn { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+  .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-size: 13px; }
+  .export-zone { display: none; margin-top: 1.25rem; }
+  .export-zone.visible { display: block; }
+  .export-zone p { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .export-zone p strong { color: var(--text); }
+  .csv-area { width: 100%; height: 180px; font-family: var(--mono); font-size: 11px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); color: var(--text); resize: vertical; margin-bottom: 10px; }
+  .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--accent); color: #fff; padding: 10px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 500; opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .loading-overlay { position: fixed; inset: 0; background: rgba(245,244,240,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 100; font-size: 14px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } .form-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <span>Connexion à Firebase…</span>
+</div>
+
+<div class="page">
+  <h1>🏷️ Vinted SKU Manager</h1>
+  <div class="subtitle">
+    Collaboratif en temps réel
+    <span class="sync-indicator">
+      <span class="sync-dot loading" id="sync-dot"></span>
+      <span id="sync-label">Connexion…</span>
+    </span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="s-total">0</div></div>
+    <div class="stat"><div class="stat-label">Disponibles</div><div class="stat-value" id="s-dispo">0</div></div>
+    <div class="stat"><div class="stat-label">Vendus</div><div class="stat-value" id="s-vendu">0</div></div>
+    <div class="stat"><div class="stat-label">Valeur stock</div><div class="stat-value" id="s-val">0 €</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ajouter un article</div>
+    <div class="sku-box">
+      <span class="sku-lbl">SKU généré</span>
+      <span class="sku-val" id="sku-prev">---</span>
+    </div>
+    <div class="form-grid">
+      <div class="fg">
+        <label>Catégorie</label>
+        <select id="f-cat" onchange="upSku()">
+          <option value="HH">Hauts hommes</option>
+          <option value="HF">Hauts femmes</option>
+          <option value="BH">Bas hommes</option>
+          <option value="BF">Bas femmes</option>
+          <option value="VH">Veste / manteau H</option>
+          <option value="VF">Veste / manteau F</option>
+          <option value="CH">Chaussures H</option>
+          <option value="CF">Chaussures F</option>
+          <option value="AC">Accessoires</option>
+          <option value="SP">Sport</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Marque</label>
+        <input id="f-marque" placeholder="Nike" maxlength="5" oninput="upSku()" />
+      </div>
+      <div class="fg">
+        <label>Taille</label>
+        <input id="f-taille" placeholder="M / 42" maxlength="4" oninput="upSku()" />
+      </div>
+      <div class="fg">
+        <label>État</label>
+        <select id="f-etat">
+          <option value="N">Neuf avec étiquette</option>
+          <option value="NN">Neuf sans étiquette</option>
+          <option value="TB">Très bon état</option>
+          <option value="B">Bon état</option>
+          <option value="S">Satisfaisant</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Description</label>
+        <input id="f-desc" placeholder="T-shirt col rond" />
+      </div>
+      <div class="fg">
+        <label>Prix (€)</label>
+        <input id="f-prix" type="number" placeholder="15" min="0" step="0.5" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="btn-add" onclick="addArt()">+ Ajouter</button>
+      <button onclick="resetF()">↺ Réinitialiser</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Articles (<span id="count-label">0</span>)</div>
+    <div class="filter-row">
+      <input id="search" placeholder="Rechercher SKU, marque, description…" oninput="render()" />
+      <select id="fstat" onchange="render()">
+        <option value="">Tous les statuts</option>
+        <option value="Disponible">Disponible</option>
+        <option value="Réservé">Réservé</option>
+        <option value="Vendu">Vendu</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:130px">SKU</th>
+            <th style="width:180px">Article</th>
+            <th style="width:55px">Taille</th>
+            <th style="width:60px">Prix</th>
+            <th style="width:110px">État</th>
+            <th style="width:110px">Statut</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty">Aucun article pour l'instant — ajoutez-en un ci-dessus</div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <button class="export-btn" onclick="showExport()">⬇ Exporter CSV</button>
+  </div>
+
+  <div class="export-zone" id="export-zone">
+    <div class="card">
+      <div class="card-title">Export CSV</div>
+      <p>Clique dans la zone → <strong>Ctrl+A</strong> pour tout sélectionner → <strong>Ctrl+C</strong> pour copier → colle dans Excel ou Google Sheets.</p>
+      <textarea class="csv-area" id="csv-out" readonly onclick="this.select(); this.setSelectionRange(0,99999);"></textarea>
+      <div class="btn-row">
+        <button onclick="selAll()">📋 Tout sélectionner</button>
+        <button onclick="document.getElementById('export-zone').classList.remove('visible')">Masquer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, deleteDoc, doc, updateDoc,
+    onSnapshot, query, orderBy, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAsKtefCNk7DEaVoPoQo4tIgP4vnS8GCRA",
+    authDomain: "vinted-sku.firebaseapp.com",
+    projectId: "vinted-sku",
+    storageBucket: "vinted-sku.firebasestorage.app",
+    messagingSenderId: "429741441174",
+    appId: "1:429741441174:web:18f779d6cc16e1d23f42b7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const col = collection(db, "articles");
+
+  const etats = { N:'Neuf avec étiq.', NN:'Neuf sans étiq.', TB:'Très bon état', B:'Bon état', S:'Satisfaisant' };
+  let arts = [];
+  let ctr = 1;
+
+  // Compteur local basé sur le max existant
+  function updateCtr() {
+    if (arts.length === 0) { ctr = 1; return; }
+    const nums = arts.map(a => {
+      const m = a.sku.match(/-(\d{4})-/);
+      return m ? parseInt(m[1]) : 0;
+    });
+    ctr = Math.max(...nums) + 1;
+  }
+
+  function pad(n, l) { return String(n).padStart(l, '0'); }
+
+  function genSku(cat, marque, taille) {
+    const m = (marque || 'XXX').replace(/\s/g,'').toUpperCase().slice(0,5).padEnd(3,'X');
+    const t = (taille || 'UN').replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,4).padEnd(2,'X');
+    const d = new Date();
+    return `${cat}-${m}-${t}-${pad(ctr,4)}-${String(d.getFullYear()).slice(-2)}${pad(d.getMonth()+1,2)}`;
+  }
+
+  window.upSku = function() {
+    document.getElementById('sku-prev').textContent = genSku(
+      document.getElementById('f-cat').value,
+      document.getElementById('f-marque').value,
+      document.getElementById('f-taille').value
+    );
+  };
+
+  window.addArt = async function() {
+    const cat = document.getElementById('f-cat').value;
+    const marque = document.getElementById('f-marque').value.trim();
+    const taille = document.getElementById('f-taille').value.trim();
+    const etat = document.getElementById('f-etat').value;
+    const desc = document.getElementById('f-desc').value.trim();
+    const prix = parseFloat(document.getElementById('f-prix').value) || 0;
+    if (!marque || !desc) { alert('Marque et description sont obligatoires.'); return; }
+
+    updateCtr();
+    const sku = genSku(cat, marque, taille);
+    const catLbl = document.getElementById('f-cat').options[document.getElementById('f-cat').selectedIndex].text;
+
+    const btn = document.getElementById('btn-add');
+    btn.disabled = true;
+    try {
+      await addDoc(col, {
+        sku, cat: catLbl, marque, taille, etat, desc, prix,
+        statut: 'Disponible',
+        date: new Date().toLocaleDateString('fr-FR'),
+        createdAt: serverTimestamp()
+      });
+      resetF();
+      toast('Article ajouté ✓');
+    } catch(e) {
+      alert('Erreur Firebase : ' + e.message);
+    }
+    btn.disabled = false;
+  };
+
+  window.resetF = function() {
+    ['f-marque','f-taille','f-desc','f-prix'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-cat').selectedIndex = 0;
+    document.getElementById('f-etat').selectedIndex = 0;
+    upSku();
+  };
+
+  window.delArt = async function(id) {
+    if (!confirm('Supprimer cet article définitivement ?')) return;
+    try { await deleteDoc(doc(db, 'articles', id)); toast('Article supprimé'); }
+    catch(e) { alert('Erreur : ' + e.message); }
+  };
+
+  window.chgStat = async function(id, val) {
+    try { await updateDoc(doc(db, 'articles', id), { statut: val }); }
+    catch(e) { alert('Erreur : ' + e.message); }
+  };
+
+  window.render = function() {
+    const s = document.getElementById('search').value.toLowerCase();
+    const fs = document.getElementById('fstat').value;
+    const f = arts.filter(a => {
+      const ok = !s || [a.sku, a.desc, a.marque, a.cat, a.taille].some(v => String(v||'').toLowerCase().includes(s));
+      return ok && (!fs || a.statut === fs);
+    });
+    const tb = document.getElementById('tbody');
+    document.getElementById('empty').style.display = f.length ? 'none' : 'block';
+    document.getElementById('count-label').textContent = arts.length;
+    tb.innerHTML = f.map(a => `
+      <tr id="row-${a.id}">
+        <td><span class="mono-sm">${a.sku}</span></td>
+        <td title="${a.marque} — ${a.desc}">${a.marque} — ${a.desc}</td>
+        <td>${a.taille || '—'}</td>
+        <td>${(a.prix||0).toFixed(2)} €</td>
+        <td style="font-size:12px;">${etats[a.etat] || a.etat}</td>
+        <td>
+          <select class="stat-sel" onchange="chgStat('${a.id}', this.value)">
+            ${['Disponible','Réservé','Vendu'].map(s => `<option ${a.statut===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td><button class="danger icon-btn" onclick="delArt('${a.id}')">✕</button></td>
+      </tr>`).join('');
+  };
+
+  function updateStats() {
+    document.getElementById('s-total').textContent = arts.length;
+    document.getElementById('s-dispo').textContent = arts.filter(a => a.statut === 'Disponible').length;
+    document.getElementById('s-vendu').textContent = arts.filter(a => a.statut === 'Vendu').length;
+    const val = arts.filter(a => a.statut !== 'Vendu').reduce((s,a) => s + (a.prix||0), 0);
+    document.getElementById('s-val').textContent = val.toFixed(0) + ' €';
+  }
+
+  window.showExport = function() {
+    if (!arts.length) { alert('Aucun article à exporter.'); return; }
+    const h = ['SKU','Catégorie','Marque','Taille','État','Description','Prix','Statut','Date'];
+    const rows = arts.map(a => [a.sku, a.cat, a.marque, a.taille, etats[a.etat]||a.etat, a.desc, a.prix, a.statut, a.date]);
+    const csv = [h, ...rows].map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    document.getElementById('csv-out').value = csv;
+    document.getElementById('export-zone').classList.add('visible');
+    document.getElementById('export-zone').scrollIntoView({ behavior: 'smooth' });
+  };
+
+  window.selAll = function() {
+    const ta = document.getElementById('csv-out');
+    ta.select(); ta.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); toast('Copié ✓'); } catch(e) { toast('Sélectionné — Ctrl+C pour copier'); }
+  };
+
+  window.toast = function(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  };
+
+  // Écoute temps réel Firebase
+  const q = query(col, orderBy('createdAt', 'desc'));
+  let firstLoad = true;
+  let knownIds = new Set();
+
+  onSnapshot(q, (snapshot) => {
+    // Mettre à jour le dot de connexion
+    document.getElementById('sync-dot').className = 'sync-dot online';
+    document.getElementById('sync-label').textContent = 'En ligne';
+    document.getElementById('loading').style.display = 'none';
+
+    const newIds = new Set();
+    arts = [];
+    snapshot.forEach(d => {
+      arts.push({ id: d.id, ...d.data() });
+      newIds.add(d.id);
+    });
+
+    updateCtr();
+    render();
+    updateStats();
+
+    // Flash sur les nouveaux articles (ajoutés par quelqu'un d'autre)
+    if (!firstLoad) {
+      newIds.forEach(id => {
+        if (!knownIds.has(id)) {
+          setTimeout(() => {
+            const row = document.getElementById('row-' + id);
+            if (row) row.classList.add('new-flash');
+          }, 50);
+        }
+      });
+    }
+    knownIds = newIds;
+    firstLoad = false;
+
+  }, (error) => {
+    document.getElementById('sync-dot').className = 'sync-dot';
+    document.getElementById('sync-label').textContent = 'Hors ligne';
+    document.getElementById('loading').style.display = 'none';
+    console.error('Firebase error:', error);
+    alert('Erreur de connexion Firebase. Vérifie les règles Firestore (mode test).');
+  });
+
+  upSku();
+</script>
+</body>
+</html>
