@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vinted SKU Manager</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9; --border: #e2e0d8;
+    --text: #1a1917; --muted: #787570; --accent: #2d5016; --accent-bg: #e8f0df;
+    --danger: #8b1a1a; --danger-bg: #fdeaea;
+    --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; padding: 1rem; }
+  .page { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 0.2rem; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sync-indicator { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 10px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; }
+  .sync-dot.online { background: #4caf50; animation: pulse 2s infinite; }
+  .sync-dot.loading { background: #ff9800; animation: pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .stats { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; margin-bottom: 1.25rem; }
+  @media(min-width:600px){ .stats { grid-template-columns: repeat(4,1fr); } }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1rem; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .stat-value { font-size: 20px; font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+  .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 0.9rem; }
+
+  .sku-box { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 12px; margin-bottom: 0.9rem; }
+  .sku-lbl { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .sku-val { font-family: var(--mono); font-size: 15px; font-weight: 500; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  @media(min-width:500px){ .form-grid { grid-template-columns: repeat(3,1fr); } }
+  @media(min-width:700px){ .form-grid { grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); } }
+  .fg { display: flex; flex-direction: column; gap: 3px; }
+  .fg label { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .fg input, .fg select { font-family: var(--sans); font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; width: 100%; }
+  .fg input:focus, .fg select:focus { border-color: var(--accent); }
+  .span2 { grid-column: span 2; }
+
+  .wl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 9px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; -webkit-tap-highlight-color: transparent; }
+  button:active { opacity: 0.8; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--danger); border-color: #f5c0c0; }
+  button.danger:active { background: var(--danger-bg); }
+  button.export-btn { background: #deeaf8; color: #0f3460; border-color: #b8d0ee; }
+  button.vinted-btn { background: #f0f0ff; color: #3d3d9e; border-color: #c0c0ee; font-size: 12px; padding: 6px 12px; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0.9rem; }
+  .filter-row input, .filter-row select { font-family: var(--sans); font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; }
+  .filter-row input { flex: 1; min-width: 100px; }
+
+  /* Cards articles */
+  .art-list { display: flex; flex-direction: column; gap: 8px; }
+  .art-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; transition: background 0.6s; }
+  .art-card.flash { background: #e8f0df; }
+  .art-card-sku { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .art-card-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .art-card-meta { font-size: 12px; color: var(--muted); }
+  .art-card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; flex-wrap: wrap; }
+  .art-card-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .art-card-prix { font-size: 15px; font-weight: 600; }
+  .art-card-actions { display: flex; gap: 6px; align-items: center; }
+
+  .carton-badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--accent-bg); color: var(--accent); font-family: var(--mono); }
+  .etat-badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .etat-TB { background: #e8f0df; color: #2d5016; }
+  .etat-B  { background: #deeaf8; color: #0f3460; }
+  .etat-S  { background: #fef3dc; color: #7a4f00; }
+  .etat-M  { background: #fdeaea; color: #8b1a1a; }
+  .etat-T  { background: #f5e6ff; color: #5c1a8b; }
+
+  .stat-sel { font-family: var(--sans); font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+  .icon-btn { padding: 6px 10px; font-size: 14px; border-radius: 6px; }
+  .edit-btn { color: #7a4f00; border-color: #f0d9a0; }
+  .edit-btn:active { background: #fef3dc; }
+
+  .empty { text-align: center; padding: 2rem 1rem; color: var(--muted); font-size: 13px; }
+
+  /* Modal */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; justify-content: center; }
+  @media(min-width:600px){ .modal-bg { align-items: center; } }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 1.25rem; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 -4px 32px rgba(0,0,0,0.15); }
+  @media(min-width:600px){ .modal { border-radius: var(--radius-lg); max-width: 540px; } }
+  .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 0.5rem; }
+  .modal-sku { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 1rem; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 1rem; }
+
+  .export-zone { display: none; margin-top: 1rem; }
+  .export-zone.visible { display: block; }
+  .export-zone p { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .csv-area { width: 100%; height: 160px; font-family: var(--mono); font-size: 11px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); color: var(--text); resize: vertical; margin-bottom: 10px; }
+
+  .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--accent); color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .loading-overlay { position: fixed; inset: 0; background: rgba(245,244,240,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 100; font-size: 14px; color: var(--muted); }
+  .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <span>Connexion…</span>
+</div>
+
+<!-- Modal édition -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>✏️ Modifier l'article</h3>
+    <div class="modal-sku" id="modal-sku"></div>
+    <div class="form-grid">
+      <div class="fg"><label>N° Carton</label><input id="m-carton" maxlength="4" /></div>
+      <div class="fg"><label>Type</label>
+        <select id="m-type" onchange="toggleWL('m')">
+          <option value="HH">Haut homme</option><option value="HF">Haut femme</option>
+          <option value="BH">Bas homme</option><option value="BF">Bas femme</option>
+          <option value="VH">Veste H</option><option value="VF">Veste F</option>
+          <option value="CH">Chaussures H</option><option value="CF">Chaussures F</option>
+          <option value="AC">Accessoires</option><option value="SP">Sport</option>
+          <option value="EN">Enfant</option>
+        </select>
+      </div>
+      <!-- Taille standard -->
+      <div class="fg" id="m-taille-wrap"><label>Taille</label><input id="m-taille" maxlength="4" placeholder="S / 42" /></div>
+      <!-- Taille W/L pantalon -->
+      <div class="fg hidden" id="m-wl-wrap" style="grid-column:span 1">
+        <label>Taille W / L</label>
+        <div class="wl-row">
+          <input id="m-w" placeholder="W32" maxlength="4" />
+          <input id="m-l" placeholder="L32" maxlength="4" />
+        </div>
+      </div>
+      <div class="fg"><label>Marque</label><input id="m-marque" /></div>
+      <div class="fg span2"><label>Description</label><input id="m-desc" /></div>
+      <div class="fg"><label>État</label>
+        <select id="m-etat">
+          <option value="TB">Très bon état</option>
+          <option value="B">Bon état</option>
+          <option value="S">Satisfaisant</option>
+          <option value="M">Mauvais état</option>
+          <option value="T">Taché</option>
+        </select>
+      </div>
+      <div class="fg"><label>Prix (€)</label><input id="m-prix" type="number" min="0" step="0.5" /></div>
+      <div class="fg"><label>Statut</label>
+        <select id="m-statut"><option>Disponible</option><option>Réservé</option><option>Vendu</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeModal()">Annuler</button>
+      <button class="primary" id="modal-save-btn" onclick="saveEdit()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+  <h1>🏷️ Vinted SKU Manager</h1>
+  <div class="subtitle">
+    Collaboratif en temps réel
+    <span class="sync-indicator">
+      <span class="sync-dot loading" id="sync-dot"></span>
+      <span id="sync-label">Connexion…</span>
+    </span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="s-total">0</div></div>
+    <div class="stat"><div class="stat-label">Disponibles</div><div class="stat-value" id="s-dispo">0</div></div>
+    <div class="stat"><div class="stat-label">Vendus</div><div class="stat-value" id="s-vendu">0</div></div>
+    <div class="stat"><div class="stat-label">Valeur stock</div><div class="stat-value" id="s-val">0 €</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ajouter un article</div>
+    <div class="sku-box">
+      <span class="sku-lbl">SKU</span>
+      <span class="sku-val" id="sku-prev">---</span>
+    </div>
+    <div class="form-grid">
+      <div class="fg"><label>N° Carton</label><input id="f-carton" placeholder="01" maxlength="4" oninput="upSku()" /></div>
+      <div class="fg"><label>Type</label>
+        <select id="f-type" onchange="upSku(); toggleWL('f')">
+          <option value="HH">Haut homme</option><option value="HF">Haut femme</option>
+          <option value="BH">Bas homme</option><option value="BF">Bas femme</option>
+          <option value="VH">Veste H</option><option value="VF">Veste F</option>
+          <option value="CH">Chaussures H</option><option value="CF">Chaussures F</option>
+          <option value="AC">Accessoires</option><option value="SP">Sport</option>
+          <option value="EN">Enfant</option>
+        </select>
+      </div>
+      <!-- Taille standard -->
+      <div class="fg" id="f-taille-wrap"><label>Taille</label><input id="f-taille" placeholder="S / 42" maxlength="4" oninput="upSku()" /></div>
+      <!-- Taille W/L -->
+      <div class="fg hidden" id="f-wl-wrap">
+        <label>Taille W / L</label>
+        <div class="wl-row">
+          <input id="f-w" placeholder="W32" maxlength="4" oninput="upSku()" />
+          <input id="f-l" placeholder="L32" maxlength="4" />
+        </div>
+      </div>
+      <div class="fg"><label>Marque</label><input id="f-marque" placeholder="Nike" /></div>
+      <div class="fg span2"><label>Description</label><input id="f-desc" placeholder="Jean slim bleu" /></div>
+      <div class="fg"><label>État</label>
+        <select id="f-etat">
+          <option value="TB">Très bon état</option>
+          <option value="B">Bon état</option>
+          <option value="S">Satisfaisant</option>
+          <option value="M">Mauvais état</option>
+          <option value="T">Taché</option>
+        </select>
+      </div>
+      <div class="fg"><label>Prix (€)</label>
+        <input id="f-prix" type="number" placeholder="15" min="0" step="0.5" />
+      </div>
+      <div class="fg" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="vinted-btn" onclick="estimerPrix()" title="Voir les prix sur Vinted" style="width:100%;">🔍 Estimer sur Vinted</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="btn-add" onclick="addArt()">+ Ajouter</button>
+      <button onclick="resetF()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Articles (<span id="count-label">0</span>)</div>
+    <div class="filter-row">
+      <input id="search" placeholder="Rechercher…" oninput="render()" onkeydown="if(event.key==='Enter') render()" />
+      <button onclick="render()" style="padding:8px 14px;">🔍</button>
+      <button onclick="document.getElementById('search').value='';render();" style="padding:8px 12px;color:var(--muted);">✕</button>
+      <select id="f-carton-filter" onchange="render()"><option value="">Tous cartons</option></select>
+      <select id="fstat" onchange="render()">
+        <option value="">Tous statuts</option>
+        <option value="Disponible">Disponible</option>
+        <option value="Réservé">Réservé</option>
+        <option value="Vendu">Vendu</option>
+      </select>
+      <select id="fetat" onchange="render()">
+        <option value="">Tous états</option>
+        <option value="TB">Très bon état</option>
+        <option value="B">Bon état</option>
+        <option value="S">Satisfaisant</option>
+        <option value="M">Mauvais état</option>
+        <option value="T">Taché</option>
+      </select>
+    </div>
+    <div class="art-list" id="art-list"></div>
+    <div id="empty" class="empty">Aucun article — ajoutez-en un ci-dessus</div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
+    <button class="export-btn" onclick="showExport()">⬇ Exporter CSV</button>
+  </div>
+
+  <div class="export-zone" id="export-zone">
+    <div class="card">
+      <div class="card-title">Export CSV</div>
+      <p>Clique dans la zone → <strong>Ctrl+A</strong> → <strong>Ctrl+C</strong> → colle dans Excel ou Google Sheets.</p>
+      <textarea class="csv-area" id="csv-out" readonly onclick="this.select();this.setSelectionRange(0,99999);"></textarea>
+      <div class="btn-row">
+        <button onclick="selAll()">📋 Tout sélectionner</button>
+        <button onclick="document.getElementById('export-zone').classList.remove('visible')">Masquer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, orderBy, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAsKtefCNk7DEaVoPoQo4tIgP4vnS8GCRA",
+    authDomain: "vinted-sku.firebaseapp.com",
+    projectId: "vinted-sku",
+    storageBucket: "vinted-sku.firebasestorage.app",
+    messagingSenderId: "429741441174",
+    appId: "1:429741441174:web:18f779d6cc16e1d23f42b7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const col = collection(db, "articles");
+
+  const etats = { TB:'Très bon état', B:'Bon état', S:'Satisfaisant', M:'Mauvais état', T:'Taché' };
+  const isBas = t => ['BH','BF'].includes(t);
+
+  let arts = [], ctr = 1, editingId = null;
+
+  function updateCtr() {
+    if (!arts.length) { ctr=1; return; }
+    const nums = arts.map(a=>{ const m=a.sku.match(/-(\d{4})$/); return m?parseInt(m[1]):0; });
+    ctr = Math.max(...nums)+1;
+  }
+
+  function pad(n,l){ return String(n).padStart(l,'0'); }
+
+  function genSku(carton, type, taille) {
+    const c = (carton||'00').replace(/\s/g,'').padStart(2,'0').toUpperCase().slice(0,4);
+    const t = (taille||'UN').replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,4).padEnd(2,'X');
+    return `C${c}-${pad(ctr,4)}-${type}-${t}`;
+  }
+
+  function getTailleForm(pfx) {
+    if (isBas(document.getElementById(pfx+'-type').value)) {
+      const w = document.getElementById(pfx+'-w').value.trim();
+      const l = document.getElementById(pfx+'-l').value.trim();
+      return (w&&l) ? `${w}/${l}` : (w||l||'');
+    }
+    return document.getElementById(pfx+'-taille').value.trim();
+  }
+
+  window.toggleWL = pfx => {
+    const bas = isBas(document.getElementById(pfx+'-type').value);
+    document.getElementById(pfx+'-taille-wrap').classList.toggle('hidden', bas);
+    document.getElementById(pfx+'-wl-wrap').classList.toggle('hidden', !bas);
+  };
+
+  window.upSku = () => {
+    document.getElementById('sku-prev').textContent = genSku(
+      document.getElementById('f-carton').value,
+      document.getElementById('f-type').value,
+      getTailleForm('f')
+    );
+  };
+
+  window.estimerPrix = () => {
+    const marque = document.getElementById('f-marque').value.trim();
+    const desc = document.getElementById('f-desc').value.trim();
+    const q = encodeURIComponent([marque, desc].filter(Boolean).join(' '));
+    window.open(`https://www.vinted.fr/catalog?search_text=${q}&order=price_high_to_low`, '_blank');
+  };
+
+  window.addArt = async () => {
+    const carton = document.getElementById('f-carton').value.trim();
+    const type = document.getElementById('f-type').value;
+    const taille = getTailleForm('f');
+    const marque = document.getElementById('f-marque').value.trim();
+    const desc = document.getElementById('f-desc').value.trim();
+    const etat = document.getElementById('f-etat').value;
+    const prix = parseFloat(document.getElementById('f-prix').value)||0;
+    if (!carton) { alert('Le numéro de carton est obligatoire.'); return; }
+    if (!desc) { alert('La description est obligatoire.'); return; }
+    updateCtr();
+    const sku = genSku(carton, type, taille);
+    const typeLbl = document.getElementById('f-type').options[document.getElementById('f-type').selectedIndex].text;
+    const btn = document.getElementById('btn-add');
+    btn.disabled = true;
+    try {
+      await addDoc(col, { sku, carton, type, typeLbl, taille, marque, desc, etat, prix, statut:'Disponible', date:new Date().toLocaleDateString('fr-FR'), createdAt:serverTimestamp() });
+      resetF(); toast('Article ajouté ✓');
+    } catch(e) { alert('Erreur : '+e.message); }
+    btn.disabled = false;
+  };
+
+  window.resetF = () => {
+    ['f-carton','f-taille','f-marque','f-desc','f-prix','f-w','f-l'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-type').selectedIndex=0;
+    document.getElementById('f-etat').selectedIndex=0;
+    toggleWL('f');
+    upSku();
+  };
+
+  window.delArt = async id => {
+    if (!confirm('Supprimer ?')) return;
+    try { await deleteDoc(doc(db,'articles',id)); toast('Supprimé'); }
+    catch(e) { alert('Erreur : '+e.message); }
+  };
+
+  window.chgStat = async (id,val) => {
+    try { await updateDoc(doc(db,'articles',id),{statut:val}); }
+    catch(e) { alert('Erreur : '+e.message); }
+  };
+
+  window.openEdit = id => {
+    const a = arts.find(a=>a.id===id);
+    if (!a) return;
+    editingId = id;
+    document.getElementById('modal-sku').textContent = 'SKU : '+a.sku;
+    document.getElementById('m-carton').value = a.carton||'';
+    document.getElementById('m-marque').value = a.marque||'';
+    document.getElementById('m-desc').value = a.desc||'';
+    document.getElementById('m-prix').value = a.prix||'';
+    document.getElementById('m-statut').value = a.statut||'Disponible';
+    // Etat
+    const etatEl = document.getElementById('m-etat');
+    for(let i=0;i<etatEl.options.length;i++){ if(etatEl.options[i].value===a.etat){etatEl.selectedIndex=i;break;} }
+    // Type
+    const typeEl = document.getElementById('m-type');
+    for(let i=0;i<typeEl.options.length;i++){ if(typeEl.options[i].value===a.type){typeEl.selectedIndex=i;break;} }
+    toggleWL('m');
+    // Taille
+    if (isBas(a.type) && a.taille && a.taille.includes('/')) {
+      const parts = a.taille.split('/');
+      document.getElementById('m-w').value = parts[0]||'';
+      document.getElementById('m-l').value = parts[1]||'';
+    } else {
+      document.getElementById('m-taille').value = a.taille||'';
+      document.getElementById('m-w').value='';
+      document.getElementById('m-l').value='';
+    }
+    document.getElementById('modal-bg').classList.add('open');
+    document.body.style.overflow='hidden';
+  };
+
+  window.closeModal = () => {
+    document.getElementById('modal-bg').classList.remove('open');
+    document.body.style.overflow='';
+    editingId=null;
+  };
+
+  window.saveEdit = async () => {
+    if (!editingId) return;
+    const type = document.getElementById('m-type').value;
+    const typeLbl = document.getElementById('m-type').options[document.getElementById('m-type').selectedIndex].text;
+    let taille;
+    if (isBas(type)) {
+      const w=document.getElementById('m-w').value.trim(), l=document.getElementById('m-l').value.trim();
+      taille=(w&&l)?`${w}/${l}`:(w||l||'');
+    } else {
+      taille=document.getElementById('m-taille').value.trim();
+    }
+    const data = {
+      carton:document.getElementById('m-carton').value.trim(),
+      type, typeLbl, taille,
+      marque:document.getElementById('m-marque').value.trim(),
+      desc:document.getElementById('m-desc').value.trim(),
+      etat:document.getElementById('m-etat').value,
+      prix:parseFloat(document.getElementById('m-prix').value)||0,
+      statut:document.getElementById('m-statut').value,
+    };
+    if (!data.desc) { alert('Description obligatoire.'); return; }
+    const btn=document.getElementById('modal-save-btn');
+    btn.disabled=true;
+    try { await updateDoc(doc(db,'articles',editingId),data); closeModal(); toast('Modifié ✓'); }
+    catch(e) { alert('Erreur : '+e.message); }
+    btn.disabled=false;
+  };
+
+  document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+
+  function updateCartonFilter() {
+    const cartons=[...new Set(arts.map(a=>a.carton).filter(Boolean))].sort();
+    const sel=document.getElementById('f-carton-filter');
+    const cur=sel.value;
+    sel.innerHTML='<option value="">Tous cartons</option>'+cartons.map(c=>`<option value="${c}" ${cur===c?'selected':''}>${c}</option>`).join('');
+  }
+
+  window.render = () => {
+    const s=document.getElementById('search').value.toLowerCase();
+    const fs=document.getElementById('fstat').value;
+    const fc=document.getElementById('f-carton-filter').value;
+    const fe=document.getElementById('fetat').value;
+    const f=arts.filter(a=>{
+      const ok=!s||[a.sku,a.desc,a.marque,a.typeLbl,a.taille,a.carton].some(v=>String(v||'').toLowerCase().includes(s));
+      return ok&&(!fs||a.statut===fs)&&(!fc||a.carton===fc)&&(!fe||a.etat===fe);
+    });
+    const list=document.getElementById('art-list');
+    document.getElementById('empty').style.display=f.length?'none':'block';
+    document.getElementById('count-label').textContent=arts.length;
+    const statutColor={Disponible:'#2d5016',Réservé:'#7a4f00',Vendu:'#787570'};
+    list.innerHTML=f.map(a=>`
+      <div class="art-card" id="row-${a.id}">
+        <div class="art-card-sku">
+          <span>${a.sku}</span>
+          <span class="carton-badge">C${String(a.carton||'').padStart(2,'0')}</span>
+          ${a.etat ? `<span class="etat-badge etat-${a.etat}">${etats[a.etat]||a.etat}</span>` : ''}
+        </div>
+        <div class="art-card-title">${a.marque?a.marque+' — ':''}${a.desc}</div>
+        <div class="art-card-meta">${a.typeLbl||a.type}${a.taille?' · '+a.taille:''}</div>
+        <div class="art-card-bottom">
+          <div class="art-card-left">
+            <span class="art-card-prix">${(a.prix||0).toFixed(2)} €</span>
+            <select class="stat-sel" onchange="chgStat('${a.id}',this.value)" style="color:${statutColor[a.statut]||'#787570'}">
+              ${['Disponible','Réservé','Vendu'].map(s=>`<option ${a.statut===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="art-card-actions">
+            <button class="edit-btn icon-btn" onclick="openEdit('${a.id}')">✏️</button>
+            <button class="danger icon-btn" onclick="delArt('${a.id}')">✕</button>
+          </div>
+        </div>
+      </div>`).join('');
+  };
+
+  function updateStats() {
+    document.getElementById('s-total').textContent=arts.length;
+    document.getElementById('s-dispo').textContent=arts.filter(a=>a.statut==='Disponible').length;
+    document.getElementById('s-vendu').textContent=arts.filter(a=>a.statut==='Vendu').length;
+    document.getElementById('s-val').textContent=arts.filter(a=>a.statut!=='Vendu').reduce((s,a)=>s+(a.prix||0),0).toFixed(0)+' €';
+  }
+
+  window.showExport = () => {
+    if (!arts.length) { alert('Aucun article.'); return; }
+    const h=['SKU','Carton','Type','Taille','Marque','Description','État','Prix','Statut','Date'];
+    const rows=arts.map(a=>[a.sku,a.carton,a.typeLbl||a.type,a.taille,a.marque,a.desc,etats[a.etat]||a.etat,a.prix,a.statut,a.date]);
+    document.getElementById('csv-out').value=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    document.getElementById('export-zone').classList.add('visible');
+    document.getElementById('export-zone').scrollIntoView({behavior:'smooth'});
+  };
+
+  window.selAll = () => {
+    const ta=document.getElementById('csv-out');
+    ta.select(); ta.setSelectionRange(0,99999);
+    try { document.execCommand('copy'); toast('Copié ✓'); } catch(e) { toast('Sélectionné — Ctrl+C'); }
+  };
+
+  window.toast = msg => {
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),2200);
+  };
+
+  let firstLoad=true, knownIds=new Set();
+  onSnapshot(query(col,orderBy('createdAt','desc')), snapshot=>{
+    document.getElementById('sync-dot').className='sync-dot online';
+    document.getElementById('sync-label').textContent='En ligne';
+    document.getElementById('loading').style.display='none';
+    const newIds=new Set();
+    arts=[];
+    snapshot.forEach(d=>{ arts.push({id:d.id,...d.data()}); newIds.add(d.id); });
+    updateCtr(); updateCartonFilter(); render(); updateStats();
+    if (!firstLoad) {
+      newIds.forEach(id=>{
+        if (!knownIds.has(id)) setTimeout(()=>{
+          const r=document.getElementById('row-'+id);
+          if(r){ r.classList.add('flash'); setTimeout(()=>r.classList.remove('flash'),1200); }
+        },50);
+      });
+    }
+    knownIds=newIds; firstLoad=false;
+  }, ()=>{
+    document.getElementById('sync-dot').className='sync-dot';
+    document.getElementById('sync-label').textContent='Hors ligne';
+    document.getElementById('loading').style.display='none';
+  });
+
+  upSku();
+</script>
+</body>
+</html>
