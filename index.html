@@ -173,6 +173,62 @@
   </div>
 </div>
 
+<!-- Modal description -->
+<div class="modal-bg" id="desc-modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>📝 Description générée</h3>
+    <div class="modal-sku" id="desc-sku"></div>
+
+    <div class="fg" style="margin-bottom:10px;">
+      <label>Titre (max 100 caractères)</label>
+      <div style="display:flex;gap:6px;">
+        <input id="desc-title" readonly style="flex:1; font-size:13px;" />
+        <button onclick="copyTitle()" style="padding:8px 12px; font-size:12px;">📋</button>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Description</label>
+      <textarea id="desc-text" style="width:100%; min-height:240px; font-family:var(--sans); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface2); color:var(--text); resize:vertical; line-height:1.5;"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button onclick="closeDescModal()">Fermer</button>
+      <button class="primary" onclick="copyDesc()">📋 Copier la description</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal photos -->
+<div class="modal-bg" id="photos-modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>📁 Photos de l'article</h3>
+    <div class="modal-sku" id="photos-sku"></div>
+
+    <div class="fg" style="margin-bottom:14px;">
+      <label>Chemin du dossier local (LAcie)</label>
+      <div style="display:flex;gap:6px;">
+        <input id="photos-path" readonly style="flex:1; font-size:12px; font-family:var(--mono);" />
+        <button onclick="copyPath()" style="padding:8px 12px; font-size:12px;">📋</button>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;">Copie ce chemin et colle-le dans le Finder (Cmd+Maj+G)</div>
+    </div>
+
+    <div class="fg">
+      <label>Lien personnalisé (Drive, Dropbox...)</label>
+      <input id="photos-link" placeholder="https://drive.google.com/..." />
+    </div>
+
+    <div class="modal-actions">
+      <button onclick="closePhotosModal()">Annuler</button>
+      <button class="primary" onclick="savePhotosLink()">💾 Enregistrer le lien</button>
+    </div>
+  </div>
+</div>
+
+
 <div class="page">
   <h1>🏷️ Vinted SKU Manager</h1>
   <div class="subtitle">
@@ -463,6 +519,238 @@
 
   document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
 
+  // --- Génération de description ---
+
+  // Table des modèles Levi's et leurs coupes
+  const LEVIS_MODELES = {
+    // Série 500 — Homme (les classiques)
+    '501': {coupe:'Straight', genre:'H/F', desc:"Le jean iconique Levi's, jambe droite."},
+    '502': {coupe:'Regular Taper', genre:'Homme', desc:'Plus confortable que le 511, resserré en bas.'},
+    '503': {coupe:'Loose Straight', genre:'Homme', desc:'Coupe ample et droite.'},
+    '504': {coupe:'Straight', genre:'Homme', desc:'Coupe droite moderne.'},
+    '505': {coupe:'Regular Straight', genre:'Homme', desc:'Droit classique, plus ample que le 501.'},
+    '506': {coupe:'Standard Straight', genre:'Homme', desc:'Coupe droite standard.'},
+    '508': {coupe:'Taper', genre:'Homme', desc:'Ajusté aux hanches, resserré en bas.'},
+    '510': {coupe:'Super Skinny', genre:'Homme', desc:'Très moulant.'},
+    '511': {coupe:'Slim', genre:'Homme', desc:"Le best-seller Levi's homme."},
+    '512': {coupe:'Slim Taper', genre:'Homme', desc:'Slim qui se resserre vers la cheville.'},
+    '513': {coupe:'Slim Straight', genre:'Homme', desc:'Entre le 511 et le 514.'},
+    '514': {coupe:'Straight', genre:'Homme', desc:'Coupe droite moderne.'},
+    '515': {coupe:'Bootcut', genre:'Homme', desc:'Bootcut classique.'},
+    '516': {coupe:'Straight', genre:'Homme', desc:'Coupe droite.'},
+    '517': {coupe:'Bootcut', genre:'Homme', desc:'Ouverture pour bottes.'},
+    '519': {coupe:'Skinny', genre:'Homme', desc:'Le plus près du corps de la gamme.'},
+    '520': {coupe:'Taper', genre:'Homme', desc:'Coupe ajustée fuselée.'},
+    '522': {coupe:'Slim Taper', genre:'Homme', desc:'Slim resserré en bas.'},
+    '527': {coupe:'Slim Bootcut', genre:'Homme', desc:'Bootcut ajusté.'},
+    '531': {coupe:'Athletic Slim', genre:'Homme', desc:'Pour cuisses musclées.'},
+    '535': {coupe:'Super Skinny', genre:'Femme', desc:'Très moulant, taille basse.'},
+    '541': {coupe:'Athletic Taper', genre:'Homme', desc:'Très populaire, confortable aux cuisses.'},
+    '550': {coupe:'Relaxed', genre:'Homme', desc:'Coupe ample vintage.'},
+    '551': {coupe:'Relaxed Straight', genre:'Homme', desc:"Inspiré des Levi's vintage."},
+    '559': {coupe:'Relaxed Straight', genre:'Homme', desc:'Plus ample que le 505.'},
+    '560': {coupe:'Relaxed Taper', genre:'Homme', desc:'Ample en haut, resserré en bas.'},
+    '562': {coupe:'Loose Taper', genre:'Homme', desc:'Très ample, resserré en bas.'},
+    '569': {coupe:'Loose Straight', genre:'Homme', desc:'Très ample.'},
+
+    // Série 300 — Femme
+    '300': {coupe:'Shaping', genre:'Femme', desc:'Effet sculptant, galbe la silhouette.'},
+    '310': {coupe:'Shaping Skinny', genre:'Femme', desc:'Skinny galbant, effet ventre plat.'},
+    '311': {coupe:'Shaping Skinny', genre:'Femme', desc:'Skinny galbant, taille mi-haute.'},
+    '312': {coupe:'Shaping Slim', genre:'Femme', desc:'Effet ventre plat, galbe les hanches et cuisses, taille mi-haute.'},
+    '314': {coupe:'Shaping Straight', genre:'Femme', desc:'Droit galbant, effet ventre plat.'},
+    '315': {coupe:'Shaping Bootcut', genre:'Femme', desc:'Bootcut galbant.'},
+
+    // Série 700 — Femme
+    '710': {coupe:'Super Skinny', genre:'Femme', desc:'Ajusté aux hanches et cuisses, jambes super skinny.'},
+    '711': {coupe:'Skinny', genre:'Femme', desc:'Légèrement moins serré que le 710.'},
+    '712': {coupe:'Slim', genre:'Femme', desc:'Coupe slim, taille mi-haute.'},
+    '720': {coupe:'Super Skinny taille haute', genre:'Femme', desc:'Super skinny, taille haute.'},
+    '721': {coupe:'Skinny taille haute', genre:'Femme', desc:'Comme le 711 mais taille haute.'},
+    '722': {coupe:'Slim taille haute', genre:'Femme', desc:'Slim, taille haute.'},
+    '724': {coupe:'Straight taille haute', genre:'Femme', desc:'Slim aux hanches/cuisses, droit à la jambe, taille haute.'},
+    '725': {coupe:'Bootcut taille haute', genre:'Femme', desc:'Taille haute, slim, bootcut évasé en bas.'},
+    '726': {coupe:'High Flare', genre:'Femme', desc:'Taille haute, évasé (flare).'},
+    '728': {coupe:'High Loose', genre:'Femme', desc:'Taille haute, coupe ample.'},
+    '729': {coupe:'High Bootcut', genre:'Femme', desc:'Taille haute, bootcut.'},
+
+    // Modèles vintage / autres séries
+    '606': {coupe:'Slim Straight (vintage)', genre:'Homme', desc:'Modèle vintage, coupe ajustée droite.'},
+    '646': {coupe:'Flare (vintage)', genre:'Homme', desc:'Modèle vintage évasé, style 70s.'},
+    '684': {coupe:'Bootcut (vintage)', genre:'Homme', desc:'Modèle vintage bootcut.'},
+  };
+
+  // Coupes génériques par numéro de série quand le modèle exact n'est pas répertorié
+  function genreParSerie(numero) {
+    const n = parseInt(numero);
+    if (n >= 300 && n < 400) return 'Femme';
+    if (n >= 700 && n < 800) return 'Femme';
+    if (n >= 500 && n < 600) return 'Homme';
+    if (n >= 600 && n < 700) return 'Homme';
+    return '';
+  }
+
+  function detecterModeleLevis(texte) {
+    if (!texte) return null;
+    const m = texte.match(/\b([1-9]\d{2})\b/);
+    if (!m) return null;
+    const numero = m[1];
+    const modele = LEVIS_MODELES[numero];
+    if (modele) return {numero, ...modele};
+    // Modèle non répertorié : on retourne quand même le numéro avec une coupe générique
+    const genre = genreParSerie(numero);
+    return {numero, coupe:'', genre, desc:''};
+  }
+
+  function tailleFR(taille, type) {
+    // Convertit W## en taille FR pour les pantalons (approximation standard)
+    if (!taille) return null;
+    const m = taille.match(/W\s*(\d{2})/i);
+    if (!m) return null;
+    const w = parseInt(m[1]);
+    // Table de correspondance taille US/W vers FR (jean homme/femme)
+    const table = {23:32,24:34,25:36,26:38,27:38,28:40,29:40,30:42,31:42,32:44,33:44,34:46,35:46,36:48,37:48,38:50,39:50,40:52,41:52,42:54,43:54,44:56,46:58,48:60};
+    return table[w] || null;
+  }
+
+  const COULEURS = ['noir','bleu foncé','bleu clair','bleu brut','bleu délavé','bleu','gris','blanc','beige','marron','kaki','vert','rouge','écru','indigo','denim brut'];
+
+  function detecterCouleur(texte) {
+    if (!texte) return '';
+    const t = texte.toLowerCase();
+    for (const c of COULEURS) {
+      if (t.includes(c)) return c;
+    }
+    return '';
+  }
+
+  function genererTitre(a) {
+    const marqueTxt = a.marque ? a.marque : '';
+    const genre = (a.type||'').endsWith('F') ? 'Femme' : (a.type||'').endsWith('H') ? 'Homme' : '';
+    const typeTxt = a.typeLbl || a.type || '';
+    const tailleTxt = a.taille || '';
+    let fr = tailleFR(a.taille, a.type);
+    if (!fr && a.desc) fr = tailleFR(a.desc, a.type);
+    const frTxt = fr ? ` (FR${fr})` : '';
+    const isLevis = a.marque && a.marque.toLowerCase().includes('levi');
+    const levisModele = isLevis ? detecterModeleLevis(a.desc) : null;
+    const coupeTxt = levisModele ? `${levisModele.numero}${levisModele.coupe ? ' '+levisModele.coupe : ''}` : typeTxt;
+    const couleur = detecterCouleur(a.desc);
+    const etatTxt = etats[a.etat] || a.etat || '';
+    const estJean = isLevis || ['BH','BF'].includes(a.type);
+
+    const parts = [
+      estJean ? 'Jean' : (typeTxt.split(' ')[0] || ''),
+      marqueTxt,
+      genre,
+      coupeTxt !== typeTxt ? coupeTxt : '',
+      tailleTxt ? tailleTxt+frTxt : '',
+      couleur,
+      etatTxt
+    ].filter(Boolean);
+
+    return parts.join(' ').replace(/\s+/g,' ').trim().slice(0, 100);
+  }
+
+  function genererDescription(a) {
+    const etatTxt = etats[a.etat] || a.etat || 'Bon état';
+    const marqueTxt = a.marque ? a.marque.toUpperCase() : 'Sans marque';
+    const genre = (a.type||'').endsWith('F') ? 'Femme' : (a.type||'').endsWith('H') ? 'Homme' : '';
+    const tailleTxt = a.taille || 'voir photos';
+    // Cherche W## dans le champ taille, sinon dans la description
+    let fr = tailleFR(a.taille, a.type);
+    if (!fr && a.desc) fr = tailleFR(a.desc, a.type);
+    const tailleLigne = fr ? `${tailleTxt} (voir mesures en photo) — soit environ taille FR ${fr}` : `${tailleTxt} (voir mesures en photo)`;
+
+    const isLevis = a.marque && a.marque.toLowerCase().includes('levi');
+    const levisModele = isLevis ? detecterModeleLevis(a.desc) : null;
+    const coupeLigne = (levisModele && levisModele.coupe) ? `✂️ Coupe : ${levisModele.numero} — ${levisModele.coupe}${levisModele.desc ? ' ('+levisModele.desc+')' : ''}\n` : '';
+
+    return `${marqueTxt}${genre ? ' — '+genre : ''}
+
+Belle pièce à intégrer à ta garde-robe
+
+📏 Taille : ${tailleLigne}
+${coupeLigne}✅ État : ${etatTxt}
+${a.desc ? '🧵 Détails : ' + a.desc : ''}
+
+${a.desc || ''} en ${etatTxt.toLowerCase()}, parfait pour compléter ta garde-robe.
+
+📦 Envoi rapide et soigné
+💬 Question ? N'hésite pas à demander !`;
+  }
+
+  window.openDesc = id => {
+    const a = arts.find(a=>a.id===id);
+    if (!a) return;
+    document.getElementById('desc-sku').textContent = 'SKU : '+a.sku;
+    document.getElementById('desc-title').value = genererTitre(a);
+    document.getElementById('desc-text').value = genererDescription(a);
+    document.getElementById('desc-modal-bg').classList.add('open');
+    document.body.style.overflow='hidden';
+  };
+
+  window.closeDescModal = () => {
+    document.getElementById('desc-modal-bg').classList.remove('open');
+    document.body.style.overflow='';
+  };
+
+  window.copyTitle = () => {
+    const inp = document.getElementById('desc-title');
+    inp.select(); inp.setSelectionRange(0,99999);
+    try { document.execCommand('copy'); toast('Titre copié ✓'); }
+    catch(e) { toast('Sélectionné — Ctrl+C pour copier'); }
+  };
+
+  window.copyDesc = () => {
+    const ta = document.getElementById('desc-text');
+    ta.select(); ta.setSelectionRange(0,99999);
+    try { document.execCommand('copy'); toast('Description copiée ✓'); }
+    catch(e) { toast('Sélectionné — Ctrl+C pour copier'); }
+  };
+
+  document.getElementById('desc-modal-bg').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeDescModal(); });
+
+  // --- Gestion dossier photos ---
+  const BASE_PHOTOS = "/Volumes/A002/Back up LAcie/Vinted/Photos";
+  let editingPhotosId = null;
+
+  window.openPhotos = id => {
+    const a = arts.find(a=>a.id===id);
+    if (!a) return;
+    editingPhotosId = id;
+    document.getElementById('photos-sku').textContent = 'SKU : '+a.sku;
+    document.getElementById('photos-path').value = `${BASE_PHOTOS}/${a.sku}`;
+    document.getElementById('photos-link').value = a.photoLink || '';
+    document.getElementById('photos-modal-bg').classList.add('open');
+    document.body.style.overflow='hidden';
+  };
+
+  window.closePhotosModal = () => {
+    document.getElementById('photos-modal-bg').classList.remove('open');
+    document.body.style.overflow='';
+    editingPhotosId = null;
+  };
+
+  window.copyPath = () => {
+    const inp = document.getElementById('photos-path');
+    inp.select(); inp.setSelectionRange(0,99999);
+    try { document.execCommand('copy'); toast('Chemin copié ✓'); }
+    catch(e) { toast('Sélectionné — Ctrl+C pour copier'); }
+  };
+
+  window.savePhotosLink = async () => {
+    if (!editingPhotosId) return;
+    const link = document.getElementById('photos-link').value.trim();
+    try {
+      await updateDoc(doc(db,'articles',editingPhotosId), {photoLink: link});
+      toast('Lien enregistré ✓');
+      closePhotosModal();
+    } catch(e) { alert('Erreur : '+e.message); }
+  };
+
+  document.getElementById('photos-modal-bg').addEventListener('click', e=>{ if(e.target===e.currentTarget) closePhotosModal(); });
+
   function updateCartonFilter() {
     const cartons=[...new Set(arts.map(a=>a.carton).filter(Boolean))].sort();
     const sel=document.getElementById('f-carton-filter');
@@ -500,6 +788,9 @@
             </select>
           </div>
           <div class="art-card-actions">
+            ${a.photoLink ? `<a href="${a.photoLink}" target="_blank" class="edit-btn icon-btn" title="Ouvrir le lien photos" style="text-decoration:none;">🔗</a>` : ''}
+            <button class="edit-btn icon-btn" onclick="openPhotos('${a.id}')" title="Dossier photos">📁</button>
+            <button class="edit-btn icon-btn" onclick="openDesc('${a.id}')" title="Générer description">📝</button>
             <button class="edit-btn icon-btn" onclick="openEdit('${a.id}')">✏️</button>
             <button class="danger icon-btn" onclick="delArt('${a.id}')">✕</button>
           </div>
