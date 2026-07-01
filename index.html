@@ -244,6 +244,11 @@
     </span>
   </div>
 
+  <div style="margin-bottom:1.25rem;">
+    <button class="export-btn" id="btn-scan-drive" onclick="scanDrive()" style="background:#f0f0ff;color:#3d3d9e;border-color:#c0c0ee;">🔄 Scanner Drive</button>
+  </div>
+
+
   <div class="stats">
     <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="s-total">0</div></div>
     <div class="stat"><div class="stat-label">Disponibles</div><div class="stat-value" id="s-dispo">0</div></div>
@@ -337,7 +342,6 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
     <button class="export-btn" onclick="showExport()">⬇ Exporter CSV</button>
-    <button class="export-btn" id="btn-scan-drive" onclick="scanDrive()" style="background:#f0f0ff;color:#3d3d9e;border-color:#c0c0ee;">🔄 Scanner Drive</button>
   </div>
 
   <div class="export-zone" id="drive-scan-zone">
