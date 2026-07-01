@@ -83,6 +83,10 @@
   .etat-T  { background: #f5e6ff; color: #5c1a8b; }
 
   .stat-sel { font-family: var(--sans); font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+  .online-toggle { font-family: var(--sans); font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: var(--radius); cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .online-toggle.is-online { background: var(--accent-bg); color: var(--accent); border: 1px solid #b0d9a8; }
+  .online-toggle.is-offline { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .online-toggle:active { opacity: 0.8; }
   .icon-btn { padding: 6px 10px; font-size: 14px; border-radius: 6px; }
   .edit-btn { color: #7a4f00; border-color: #f0d9a0; }
   .edit-btn:active { background: #fef3dc; }
@@ -320,6 +324,11 @@
         <option value="M">Mauvais état</option>
         <option value="T">Taché</option>
       </select>
+      <select id="fonline" onchange="render()">
+        <option value="">En ligne ou pas</option>
+        <option value="oui">🟢 En ligne</option>
+        <option value="non">⚪ Pas en ligne</option>
+      </select>
     </div>
     <div class="art-list" id="art-list"></div>
     <div id="empty" class="empty">Aucun article — ajoutez-en un ci-dessus</div>
@@ -449,6 +458,11 @@
 
   window.chgStat = async (id,val) => {
     try { await updateDoc(doc(db,'articles',id),{statut:val}); }
+    catch(e) { alert('Erreur : '+e.message); }
+  };
+
+  window.toggleEnLigne = async (id, val) => {
+    try { await updateDoc(doc(db,'articles',id),{enLigne:val}); }
     catch(e) { alert('Erreur : '+e.message); }
   };
 
@@ -649,7 +663,11 @@
       etatTxt
     ].filter(Boolean);
 
-    return parts.join(' ').replace(/\s+/g,' ').trim().slice(0, 100);
+    let titre = parts.join(' ').replace(/\s+/g,' ').trim();
+    const skuTxt = ` [${a.sku}]`;
+    const maxLen = 100 - skuTxt.length;
+    if (titre.length > maxLen) titre = titre.slice(0, maxLen).trim();
+    return titre + skuTxt;
   }
 
   function genererDescription(a) {
@@ -763,9 +781,11 @@ ${a.desc || ''} en ${etatTxt.toLowerCase()}, parfait pour compléter ta garde-ro
     const fs=document.getElementById('fstat').value;
     const fc=document.getElementById('f-carton-filter').value;
     const fe=document.getElementById('fetat').value;
+    const fo=document.getElementById('fonline').value;
     const f=arts.filter(a=>{
       const ok=!s||[a.sku,a.desc,a.marque,a.typeLbl,a.taille,a.carton].some(v=>String(v||'').toLowerCase().includes(s));
-      return ok&&(!fs||a.statut===fs)&&(!fc||a.carton===fc)&&(!fe||a.etat===fe);
+      const okOnline = !fo || (fo==='oui' ? !!a.enLigne : !a.enLigne);
+      return ok&&(!fs||a.statut===fs)&&(!fc||a.carton===fc)&&(!fe||a.etat===fe)&&okOnline;
     });
     const list=document.getElementById('art-list');
     document.getElementById('empty').style.display=f.length?'none':'block';
@@ -786,6 +806,9 @@ ${a.desc || ''} en ${etatTxt.toLowerCase()}, parfait pour compléter ta garde-ro
             <select class="stat-sel" onchange="chgStat('${a.id}',this.value)" style="color:${statutColor[a.statut]||'#787570'}">
               ${['Disponible','Réservé','Vendu'].map(s=>`<option ${a.statut===s?'selected':''}>${s}</option>`).join('')}
             </select>
+            <button class="online-toggle ${a.enLigne ? 'is-online' : 'is-offline'}" onclick="toggleEnLigne('${a.id}', ${!a.enLigne})">
+              ${a.enLigne ? '🟢 En ligne' : '⚪ Pas en ligne'}
+            </button>
           </div>
           <div class="art-card-actions">
             ${a.photoLink ? `<a href="${a.photoLink}" target="_blank" class="edit-btn icon-btn" title="Ouvrir le lien photos" style="text-decoration:none;">🔗</a>` : ''}
