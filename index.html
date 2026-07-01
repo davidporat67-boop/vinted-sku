@@ -132,7 +132,10 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <h3>✏️ Modifier l'article</h3>
-    <div class="modal-sku" id="modal-sku"></div>
+    <div class="fg" style="margin-bottom:12px;">
+      <label>SKU (modifiable si erreur de frappe)</label>
+      <input id="m-sku" style="font-family:var(--mono); font-size:13px;" />
+    </div>
     <div class="form-grid">
       <div class="fg"><label>N° Carton</label><input id="m-carton" maxlength="4" /></div>
       <div class="fg"><label>Type</label>
@@ -486,7 +489,7 @@
     const a = arts.find(a=>a.id===id);
     if (!a) return;
     editingId = id;
-    document.getElementById('modal-sku').textContent = 'SKU : '+a.sku;
+    document.getElementById('m-sku').value = a.sku;
     document.getElementById('m-carton').value = a.carton||'';
     document.getElementById('m-marque').value = a.marque||'';
     document.getElementById('m-desc').value = a.desc||'';
@@ -531,6 +534,7 @@
       taille=document.getElementById('m-taille').value.trim();
     }
     const data = {
+      sku:document.getElementById('m-sku').value.trim(),
       carton:document.getElementById('m-carton').value.trim(),
       type, typeLbl, taille,
       marque:document.getElementById('m-marque').value.trim(),
@@ -539,6 +543,7 @@
       prix:parseFloat(document.getElementById('m-prix').value)||0,
       statut:document.getElementById('m-statut').value,
     };
+    if (!data.sku) { alert('Le SKU ne peut pas être vide.'); return; }
     if (!data.desc) { alert('Description obligatoire.'); return; }
     const btn=document.getElementById('modal-save-btn');
     btn.disabled=true;
