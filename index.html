@@ -118,6 +118,7 @@
 
   .hidden { display: none !important; }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -336,6 +337,17 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
     <button class="export-btn" onclick="showExport()">⬇ Exporter CSV</button>
+    <button class="export-btn" id="btn-scan-drive" onclick="scanDrive()" style="background:#f0f0ff;color:#3d3d9e;border-color:#c0c0ee;">🔄 Scanner Drive</button>
+  </div>
+
+  <div class="export-zone" id="drive-scan-zone">
+    <div class="card">
+      <div class="card-title">Résultat du scan Drive</div>
+      <div id="drive-scan-result" style="font-size:13px; color:var(--muted); white-space:pre-wrap; max-height:300px; overflow-y:auto; font-family:var(--mono); background:var(--surface2); padding:12px; border-radius:var(--radius);"></div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button onclick="document.getElementById('drive-scan-zone').classList.remove('visible')">Masquer</button>
+      </div>
+    </div>
   </div>
 
   <div class="export-zone" id="export-zone">
@@ -663,11 +675,7 @@
       etatTxt
     ].filter(Boolean);
 
-    let titre = parts.join(' ').replace(/\s+/g,' ').trim();
-    const skuTxt = ` [${a.sku}]`;
-    const maxLen = 100 - skuTxt.length;
-    if (titre.length > maxLen) titre = titre.slice(0, maxLen).trim();
-    return titre + skuTxt;
+    return parts.join(' ').replace(/\s+/g,' ').trim().slice(0, 100);
   }
 
   function genererDescription(a) {
@@ -695,7 +703,9 @@ ${a.desc ? '🧵 Détails : ' + a.desc : ''}
 ${a.desc || ''} en ${etatTxt.toLowerCase()}, parfait pour compléter ta garde-robe.
 
 📦 Envoi rapide et soigné
-💬 Question ? N'hésite pas à demander !`;
+💬 Question ? N'hésite pas à demander !
+
+Réf : ${a.sku}`;
   }
 
   window.openDesc = id => {
@@ -826,6 +836,89 @@ ${a.desc || ''} en ${etatTxt.toLowerCase()}, parfait pour compléter ta garde-ro
     document.getElementById('s-dispo').textContent=arts.filter(a=>a.statut==='Disponible').length;
     document.getElementById('s-vendu').textContent=arts.filter(a=>a.statut==='Vendu').length;
     document.getElementById('s-val').textContent=arts.filter(a=>a.statut!=='Vendu').reduce((s,a)=>s+(a.prix||0),0).toFixed(0)+' €';
+  }
+
+  // --- Scan Google Drive ---
+  const DRIVE_CLIENT_ID = "385060651541-fu64pfjioc72emfaresv6cnqma1bu9bs.apps.googleusercontent.com";
+  const DRIVE_FOLDER_PARENT = "1BSWgClnj82lIE8o1tFfbv3lSBJRXbpVO"; // dossier "Photos" contenant les sous-dossiers SKU
+  let driveTokenClient = null;
+  let driveAccessToken = null;
+
+  function initDriveAuth() {
+    if (!window.google || driveTokenClient) return;
+    driveTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: DRIVE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: (resp) => {
+        if (resp.access_token) {
+          driveAccessToken = resp.access_token;
+          runDriveScan();
+        }
+      },
+    });
+  }
+
+  window.scanDrive = () => {
+    initDriveAuth();
+    if (!driveTokenClient) { alert('Google Identity Services non chargé, réessaie dans quelques secondes.'); return; }
+    driveTokenClient.requestAccessToken();
+  };
+
+  async function fetchAllDriveFolders() {
+    let allFiles = [];
+    let pageToken = '';
+    do {
+      const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
+        `'${DRIVE_FOLDER_PARENT}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+      )}&fields=nextPageToken,files(id,name)&pageSize=200${pageToken ? '&pageToken='+pageToken : ''}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${driveAccessToken}` } });
+      if (!res.ok) throw new Error('Erreur API Drive: ' + res.status);
+      const data = await res.json();
+      allFiles = allFiles.concat(data.files || []);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    return allFiles;
+  }
+
+  async function runDriveScan() {
+    const btn = document.getElementById('btn-scan-drive');
+    const resultEl = document.getElementById('drive-scan-result');
+    const zone = document.getElementById('drive-scan-zone');
+    btn.disabled = true;
+    btn.textContent = '⏳ Scan en cours...';
+    zone.classList.add('visible');
+    resultEl.textContent = 'Récupération des dossiers Google Drive...\n';
+
+    try {
+      const folders = await fetchAllDriveFolders();
+      const folderMap = {};
+      folders.forEach(f => { folderMap[f.name] = f.id; });
+      resultEl.textContent += `${folders.length} dossiers trouvés sur Drive.\n\nMise à jour des articles...\n\n`;
+
+      let updated = 0, notFound = 0, alreadyOk = 0;
+      for (const a of arts) {
+        const folderId = folderMap[a.sku];
+        if (!folderId) { notFound++; continue; }
+        const link = `https://drive.google.com/drive/folders/${folderId}`;
+        if (a.photoLink === link) { alreadyOk++; continue; }
+        try {
+          await updateDoc(doc(db, 'articles', a.id), { photoLink: link });
+          updated++;
+          resultEl.textContent += `✅ ${a.sku} → lien ajouté\n`;
+        } catch (e) {
+          resultEl.textContent += `❌ ${a.sku} → erreur: ${e.message}\n`;
+        }
+      }
+
+      resultEl.textContent += `\n${'='.repeat(40)}\n✅ Mis à jour : ${updated}\n✓ Déjà OK : ${alreadyOk}\n⚠️ Sans dossier Drive : ${notFound}\n${'='.repeat(40)}`;
+      resultEl.scrollTop = resultEl.scrollHeight;
+      toast(`Scan terminé : ${updated} liens ajoutés`);
+    } catch (e) {
+      resultEl.textContent += `\n❌ Erreur : ${e.message}`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🔄 Scanner Drive';
   }
 
   window.showExport = () => {
